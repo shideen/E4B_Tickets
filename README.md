@@ -1,6 +1,6 @@
 # High-Frequency Global Ticketing Engine (Enterprise-Scale IaC)
 
-This repository contains a production-ready, highly resilient Infrastructure-as-Code (Terraform) blueprint for a global, high-concurrency ticket ordering engine. It is architected specifically to handle instantaneous, massive traffic spikes (e.g., major concert ticket drops) while guaranteeing zero double-bookings, robust bot mitigation at the edge, and asynchronous downstream fulfillment.
+This repository contains a production-ready, highly resilient Infrastructure-as-Code (Terraform) blueprint for a global, high-concurrency ticket ordering engine. It is architected specifically to handle instantaneous, massive traffic spikes (e.g., major ticket drops) while guaranteeing zero double-bookings, robust bot mitigation at the edge, and asynchronous downstream fulfillment.
 
 ## 🏛️ System Architecture Layout
 
