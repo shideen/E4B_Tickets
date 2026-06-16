@@ -39,22 +39,22 @@ The system is decoupled into three distinct architectural phases:
 * Configured AWS CLI with appropriate administrative/least-privilege credentials.
 
 ### Execution Steps
-1. # Initialize Directory & Providers:
+1. Initialize Directory & Providers:
    ```bash
    terraform init
-2. # Generate a Mock Lambda Deployment Package - need to create a placeholder zip 
+2. Generate a Mock Lambda Deployment Package - need to create a placeholder zip 
     zip dummy_payload.zip main.tf
-   # This simply compresses main.tf file into an archive named dummy_payload.zip. This satisfies Terraform's requirement for a deployment package 
-   # during the initial infrastructure build. 
-3. # Formats code to standard HashiCorp configuration rules
+   This simply compresses main.tf file into an archive named dummy_payload.zip. This satisfies Terraform's requirement for a deployment package 
+   during the initial infrastructure build. 
+3. Formats code to standard HashiCorp configuration rules
      terraform fmt
-4. # Validates syntax, block structures, and reference attributes
+4. Validates syntax, block structures, and reference attributes
      terraform validate 
-5. # Review the Execution Plan
+5. Review the Execution Plan
      terraform plan
-6. # Apply and Deploy to AWS
+6. Apply and Deploy to AWS
      terraform apply
-7. # Cleaning up (optional)
+7. Cleaning up (optional)
      terraform destroy
 
 ---
