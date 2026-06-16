@@ -1,6 +1,6 @@
 # High-Frequency Global Ticketing Engine (Enterprise-Scale IaC)
 
-This repository contains a production-ready, highly resilient Infrastructure-as-Code (Terraform) blueprint for a global, high-concurrency ticket ordering engine. It is architected specifically to handle instantaneous, massive traffic spikes (e.g., major concert ticket drops) while guaranteeing zero double-bookings, robust bot mitigation at the edge, and asynchronous downstream fulfillment.
+This repository contains a production-ready, highly resilient Infrastructure-as-Code (Terraform) blueprint for a global, high-concurrency ticket ordering engine. It is architected specifically to handle instantaneous, massive traffic spikes (e.g., major ticket drops) while guaranteeing zero double-bookings, robust bot mitigation at the edge, and asynchronous downstream fulfillment.
 
 ## 🏛️ System Architecture Layout
 
@@ -39,6 +39,79 @@ The system is decoupled into three distinct architectural phases:
 * Configured AWS CLI with appropriate administrative/least-privilege credentials.
 
 ### Execution Steps
-1. **Initialize Directory & Providers:**
+1. # Initialize Directory & Providers:
    ```bash
    terraform init
+2. # Generate a Mock Lambda Deployment Package - need to create a placeholder zip 
+    zip dummy_payload.zip main.tf
+   # This simply compresses main.tf file into an archive named dummy_payload.zip. This satisfies Terraform's requirement for a deployment package 
+   # during the initial infrastructure build. 
+3. # Formats code to standard HashiCorp configuration rules
+     terraform fmt
+4. # Validates syntax, block structures, and reference attributes
+     terraform validate 
+5. # Review the Execution Plan
+     terraform plan
+6. # Apply and Deploy to AWS
+     terraform apply
+7. # Cleaning up (optional)
+     terraform destroy
+
+---
+
+## 🧪 Testing & Validation
+
+### 1. Testing the API Gateway & Message Ingestion
+
+Send a test order to the API Gateway endpoint to verify that requests are routed correctly through CloudFront, API Gateway, and into the SQS FIFO queue:
+
+```bash
+curl -X POST "https://YOUR_WORKING_DOMAIN.cloudfront.net/order?v=2" \
+  -H "Content-Type: application/json" \
+  -d '{"seat_id": "12B", "user_id": "user_london_01", "price": 85.00}'
+```
+
+**What to look for:**  
+A successful HTTP `200` or `202` response confirms the payload was ingested by API Gateway and forwarded directly to the SQS FIFO queue via the compute-bypass pattern. Check the queue metrics in the AWS Console (SQS → your-queue → Monitoring) to see the message count increment.
+
+---
+
+### 2. Testing Deduplication (The 5-Minute Window)
+
+SQS FIFO queues use content-based deduplication within a 5-minute deduplication interval. This guarantees that duplicate requests (e.g., accidental double-clicks by a user) do not result in double-bookings.
+
+**The Test**  
+Fire the exact same curl command twice in a row within 5 seconds:
+
+```bash
+# First request (should succeed)
+curl -X POST "https://YOUR_WORKING_DOMAIN.cloudfront.net/order?v=2" \
+  -H "Content-Type: application/json" \
+  -d '{"seat_id": "12B", "user_id": "user_london_01", "price": 85.00}'
+
+# Identical second request within 5 seconds (should be deduplicated)
+curl -X POST "https://YOUR_WORKING_DOMAIN.cloudfront.net/order?v=2" \
+  -H "Content-Type: application/json" \
+  -d '{"seat_id": "12B", "user_id": "user_london_01", "price": 85.00}'
+```
+
+**What to look for:**  
+Both requests return a `200`/`202` status (API Gateway does not reject the duplicate), but the SQS queue will only contain **one** message. Check the **NumberOfMessagesSent** vs **NumberOfMessagesReceived** CloudWatch metrics — the deduplication count will show that only the first message was enqueued. This is the zero-double-booking guarantee in action.
+
+---
+
+### 3. Testing Message Attributes (Filtering & Routing)
+
+Each order placed into the queue carries structured metadata in the form of **Message Attributes**. Downstream microservices (e.g., Billing, Seating Reservation) can inspect these attributes instantly to decide whether to consume or ignore a message — without needing to parse the JSON body.
+
+**The Test**  
+Use the AWS CLI to peek into the queue and prove that your metadata is cleanly separated from your JSON body text:
+
+```bash
+aws sqs receive-message \
+  --queue-url https://sqs.your-region.amazonaws.com/your-account-id/your-queue-name.fifo \
+  --message-attribute-names QueueType
+```
+
+**What to look for:**  
+In the terminal output, you will see your raw JSON sitting inside the `"Body"` block, but right below it, you will see a structured `"MessageAttributes"` object isolating `"QueueType": "OrderPlacement"`. Your downstream microservices can read this attribute instantly to decide if this message should go to the billing system or the seating reservation engine.
